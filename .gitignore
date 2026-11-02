@@ -1,0 +1,47 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# --- Node (Vue scaffolding is no longer used) ---
+node_modules/
+dist/
+dist-ssr/
+
+# --- Runtime output: never commit, machine-specific ---
+runtime/
+*.log
+logs/
+/tmp/
+
+# --- Secrets: generate locally, never commit ---
+server/certs/
+*.key
+*.pem
+!.env.example
+.env
+
+# --- Large binary assets: fetched by scripts/fetch_voice_model.sh ---
+server/models/
+bridge/models/
+
+# --- Calibration captured on site: ship examples only ---
+config/handeye.json
+config/color_calib.json
+config/work_home.json
+
+# --- OS / editor noise ---
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*.tsbuildinfo
+.eslintcache
+
+# --- Build/coverage ---
+coverage/
+__screenshots__/
+*.timestamp-*-*.mjs

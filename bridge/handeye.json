@@ -1,0 +1,77 @@
+{
+  "status": "precise",
+  "model": "camera_on_link_before_joint6",
+  "euler": "RzRyRx",
+  "square_mm": 25.0,
+  "remove_joint6": "T_link = T_flange @ Rz(-q6_deg)",
+  "usage": "Read flange pose and joint-6 angle q6. Camera pose in the base is T_flange @ Rz(-q6) @ camera_to_link.",
+  "camera_to_link_mm": [
+    133.03,
+    -4.79,
+    -153.44
+  ],
+  "camera_to_link_rvec": [
+    0.092747,
+    -0.158476,
+    1.70153
+  ],
+  "camera_to_link_matrix": [
+    [
+      -0.136802,
+      -0.990136,
+      -0.030254,
+      133.032851
+    ],
+    [
+      0.978693,
+      -0.130374,
+      -0.158627,
+      -4.789017
+    ],
+    [
+      0.153118,
+      -0.05131,
+      0.986875,
+      -153.441697
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "intrinsics": {
+    "fx": 1011.1033353434129,
+    "fy": 1014.6967928948122,
+    "cx": 586.7271511361466,
+    "cy": 352.40741913532725,
+    "dist": [
+      0.1449872594108294,
+      0.02707801344612237,
+      -0.011518454224015935,
+      -0.024717748376397695,
+      0.0
+    ],
+    "width": 1280,
+    "height": 720
+  },
+  "board_agreement_mean_mm": 3.17,
+  "board_agreement_max_mm": 7.06,
+  "offset_split_gap_mm": 5.41,
+  "views": 44,
+  "calib_rms_px": 0.243,
+  "board_plane": {
+    "point_mm": [
+      -581.33,
+      -484.72,
+      316.42
+    ],
+    "normal": [
+      0.054193,
+      -0.049908,
+      -0.997283
+    ],
+    "note": "\u6807\u5b9a\u68cb\u76d8\u6240\u5728\u5e73\u9762\u3002\u753b\u9762\u4e0a\u7684\u70b9\u6309\u8fd9\u6761\u5e73\u9762\u6362\u7b97\u6210\u673a\u68b0\u81c2\u5750\u6807\u3002"
+  }
+}
