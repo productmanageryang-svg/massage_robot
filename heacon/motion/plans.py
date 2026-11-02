@@ -1,0 +1,104 @@
+"""The four service plans: which acupoints, in what order, and which technique.
+
+This is product content, not machine tuning. A therapist or product owner can
+change wording here without touching motion code. Coordinates are pixels in
+the 1280x720 canvas the page draws on, the same numbers ``pointSets`` uses.
+"""
+
+from __future__ import annotations
+
+TRAVEL_TECH = {"p1": "循经灸", "p2": "循经灸", "p3": "推抚", "p4": "推抚"}
+POINT_TECH = {
+    "p1": {
+        1: {"大椎": "悬停灸", "左肩井": "回旋灸", "右肩井": "雀啄灸"},
+        -1: {"大椎": "往复灸", "左肩井": "回旋灸", "右肩井": "雀啄灸"},
+    },
+    "p2": {
+        1: {
+            "命门": "悬停灸",
+            "左肾俞": "回旋灸",
+            "右肾俞": "雀啄灸",
+            "腰阳关": "往复灸",
+            "左大肠俞": "回旋灸",
+            "右大肠俞": "雀啄灸",
+        },
+        -1: {
+            "命门": "往复灸",
+            "左肾俞": "回旋灸",
+            "右肾俞": "悬停灸",
+            "腰阳关": "回旋灸",
+            "左大肠俞": "往复灸",
+            "右大肠俞": "雀啄灸",
+        },
+    },
+    "p3": {
+        1: {
+            "左风池": "点按",
+            "左肩井": "揉",
+            "左天宗": "拨",
+            "右风池": "推",
+            "右肩井": "滚压",
+            "右天宗": "揉捏",
+        },
+        -1: {
+            "左风池": "揉捏",
+            "左肩井": "推",
+            "左天宗": "拨",
+            "右风池": "点按",
+            "右肩井": "揉",
+            "右天宗": "冲击",
+        },
+    },
+    "p4": {
+        1: {"左腰背": "推", "命门": "揉", "右腰背": "拨", "腰阳关": "点按"},
+        -1: {"左腰背": "揉", "命门": "冲击", "右腰背": "揉捏", "腰阳关": "滚压"},
+    },
+}
+
+# Heavier massage points get the full press, knead, and push group.
+_EMPHASIS = {
+    "p3": ("肩井", "天宗"),
+    "p4": ("命门",),
+}
+
+# Same drawing coordinates as pointSets in the page.
+PLANS = {
+    "p1": {
+        "name": "肩颈温阳灸",
+        "technique": "回旋",
+        "pattern": "circle",
+        "points": (("大椎", 270, 250), ("左肩井", 155, 275), ("右肩井", 385, 275)),
+    },
+    "p2": {
+        "name": "温肾祛寒灸",
+        "technique": "往复扫描",
+        "pattern": "scan",
+        "points": (
+            ("命门", 270, 445),
+            ("左肾俞", 195, 435),
+            ("右肾俞", 345, 435),
+            ("腰阳关", 270, 515),
+            ("左大肠俞", 185, 530),
+            ("右大肠俞", 355, 530),
+        ),
+    },
+    "p3": {
+        "name": "肩颈放松按摩",
+        "technique": "点按",
+        "pattern": "tap",
+        "points": (
+            ("左风池", 220, 235),
+            ("左肩井", 155, 275),
+            ("左天宗", 180, 350),
+            ("右风池", 320, 235),
+            ("右肩井", 385, 275),
+            ("右天宗", 360, 350),
+        ),
+    },
+    "p4": {
+        "name": "腰背舒缓按摩",
+        "technique": "揉压",
+        "pattern": "knead",
+        "points": (("左腰背", 175, 465), ("命门", 270, 445), ("右腰背", 365, 465), ("腰阳关", 270, 520)),
+    },
+}

@@ -1,0 +1,19 @@
+# Runtime dependencies for the console, camera daemon and tablet door.
+#
+# Tested on Ubuntu 24.04 (Python 3.12) and macOS 26 (Python 3.9).
+# pyrealsense2 is NOT listed here: its wheel comes from Intel's index and its
+# Mac build has a different package name. See requirements-camera.txt.
+
+numpy>=1.24
+opencv-python-headless>=4.8
+
+# Speech-to-text for tablet voice commands. Optional at runtime: if the model
+# or the package is missing, the console still serves and the voice button
+# reports that speech is unavailable.
+vosk>=0.3.44
+
+# Optional: generates the mp3 clips for spoken prompts. Without it the page
+# falls back to the browser speech synthesiser.
+edge-tts>=6.1
+
+# Test and lint tools live in requirements-dev.txt.

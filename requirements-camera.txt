@@ -1,0 +1,15 @@
+# RealSense D435i libraries. Install after requirements.txt.
+#
+# Ubuntu 24.04 (deployment target)
+#   Intel publishes a pip wheel for x86_64 and aarch64:
+#       pip install pyrealsense2
+#   If that wheel is unavailable for your Python, build from source:
+#       https://github.com/IntelRealSense/librealsense/blob/master/doc/distribution_linux.md
+#
+# macOS (the current field machine)
+#   The package name differs; it is the one already installed on site:
+#       pip install pyrealsense2-macosx
+#
+# Either way, the capture daemon is the only process that opens the camera.
+# On Linux it needs the udev rules in deploy/udev, then works as a normal user.
+# On macOS it must run as root; see deploy/launchd.

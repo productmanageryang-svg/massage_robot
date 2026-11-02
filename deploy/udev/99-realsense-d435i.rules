@@ -1,0 +1,23 @@
+# Intel RealSense D435i, for Ubuntu.
+#
+# Without these rules only root can open the camera, and librealsense needs
+# its udev metadata to pick the right backend. Install with:
+#
+#   sudo cp deploy/udev/99-realsense-d435i.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules && sudo udevadm trigger
+#
+# After this, the heacon user (in group video) opens the camera with no sudo.
+# The values are the ones shipped by librealsense's config/99-realsense-libusb.rules;
+# if you install librealsense from a deb it may already have written them.
+
+# D400 family
+SUBSYSTEM=="usb", ATTRS{idVendor}=="8086", ATTRS{idProduct}=="0b3a", MODE="0666", GROUP="video"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="8086", ATTRS{idProduct}=="0b3d", MODE="0666", GROUP="video"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="8086", ATTRS{idProduct}=="0b5c", MODE="0666", GROUP="video"
+
+# Metadata nodes used by the RealSense runtime
+SUBSYSTEM=="video4linux", ATTRS{idVendor}=="8086", MODE="0666", GROUP="video"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="8086", MODE="0666", GROUP="video"
+
+# Kernel tuning the runtime expects for stable USB streaming
+ACTION=="add", SUBSYSTEM=="usb", ATTRS{idVendor}=="8086", ATTR{power/control}="on"

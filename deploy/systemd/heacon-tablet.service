@@ -1,0 +1,32 @@
+[Unit]
+Description=HEACON 平板入口 HTTPS (8766)
+Documentation=file:/opt/heacon/docs/部署.md
+After=heacon-console.service
+Wants=heacon-console.service
+
+[Service]
+Type=simple
+User=heacon
+Group=heacon
+WorkingDirectory=/opt/heacon
+EnvironmentFile=-/etc/heacon/heacon.env
+Environment=HEACON_RUNTIME_DIR=/var/lib/heacon
+Environment=HEACON_CONFIG_DIR=/etc/heacon
+Environment=HEACON_LOG_DIR=/var/log/heacon
+Environment=HEACON_WEB_DIR=/opt/heacon/web
+ExecStart=/opt/heacon/.venv/bin/python /opt/heacon/main.py tablet
+Restart=always
+RestartSec=3
+TimeoutStopSec=10
+
+StandardOutput=append:/var/log/heacon/tablet.log
+StandardError=append:/var/log/heacon/tablet.log
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/heacon /var/log/heacon
+
+[Install]
+WantedBy=multi-user.target

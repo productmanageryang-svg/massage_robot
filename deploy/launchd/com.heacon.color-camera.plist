@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Camera capture on macOS. The colour sensor is only reachable from a root
+  process, so this job runs as root and must not fork.
+
+  Install:
+    sudo cp deploy/launchd/com.heacon.color-camera.plist /Library/LaunchDaemons/
+    sudo launchctl bootout system/com.heacon.color-camera 2>/dev/null || true
+    sudo launchctl bootstrap system /Library/LaunchDaemons/com.heacon.color-camera.plist
+
+  The Python interpreter path is fixed on purpose: launchd jobs do not inherit
+  a shell PATH or a virtualenv. Point it at the venv that has pyrealsense2.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.heacon.color-camera</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/patrickyang/Desktop/mmrobot-web/.venv/bin/python</string>
+    <string>/Users/patrickyang/Desktop/mmrobot-web/main.py</string>
+    <string>camera</string>
+  </array>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HEACON_RUNTIME_DIR</key>
+    <string>/Users/patrickyang/Desktop/mmrobot-web/runtime</string>
+    <key>HEACON_CONFIG_DIR</key>
+    <string>/Users/patrickyang/Desktop/mmrobot-web/config</string>
+    <key>HEACON_CAMERA_BACKEND</key>
+    <string>macos</string>
+    <key>HEACON_HID_STUB</key>
+    <string>/usr/local/heacon/hid_stub.dylib</string>
+  </dict>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/patrickyang/Desktop/mmrobot-web</string>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>8</integer>
+
+  <key>StandardOutPath</key>
+  <string>/Users/patrickyang/Desktop/mmrobot-web/runtime/logs/camera.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/patrickyang/Desktop/mmrobot-web/runtime/logs/camera.log</string>
+</dict>
+</plist>
