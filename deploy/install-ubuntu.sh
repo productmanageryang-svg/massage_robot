@@ -65,10 +65,23 @@ sudo -u "$USER_NAME" "$DEST/.venv/bin/pip" install -q -U pip
 sudo -u "$USER_NAME" "$DEST/.venv/bin/pip" install -q -r "$DEST/requirements.txt"
 
 echo "==> RealSense 依赖"
+# The camera daemon is the only consumer. Without this the console still runs
+# but /api/camera.jpg stays "missing" and no service can start.
 if ! sudo -u "$USER_NAME" "$DEST/.venv/bin/python" -c 'import pyrealsense2' 2>/dev/null; then
   sudo -u "$USER_NAME" "$DEST/.venv/bin/pip" install -q pyrealsense2 \
+    || sudo -u "$USER_NAME" "$DEST/.venv/bin/pip" install -q pyrealsense2-macosx \
     || echo "  装不上 pyrealsense2，请按 requirements-camera.txt 从源码编译。摄像头服务会起不来，其余不受影响。"
 fi
+sudo -u "$USER_NAME" "$DEST/.venv/bin/python" - <<'PY' || true
+try:
+    import pyrealsense2 as rs
+    n = len(list(rs.context().query_devices()))
+    print("  pyrealsense2 可用，当前看到 %d 个 RealSense 设备" % n)
+    if n == 0:
+        print("  !! 没看到设备：检查 USB 线、USB3 口、udev 规则是否已加载")
+except Exception as exc:
+    print("  pyrealsense2 检查失败：%s" % exc)
+PY
 
 echo "==> udev 规则"
 install -m 644 "$DEST/deploy/udev/99-realsense-d435i.rules" /etc/udev/rules.d/

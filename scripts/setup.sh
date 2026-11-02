@@ -49,6 +49,16 @@ if [[ "$WITH_CAMERA" == "1" ]]; then
     Darwin) python -m pip install pyrealsense2-macosx || true ;;
     Linux)  python -m pip install pyrealsense2 || true ;;
   esac
+  python - <<'PY' || true
+try:
+    import pyrealsense2 as rs
+    n = len(list(rs.context().query_devices()))
+    print("  pyrealsense2 可用，看到 %d 个设备" % n)
+    if n == 0:
+        print("  !! 没看到设备：查 USB 线、USB3 口、udev 规则")
+except Exception as exc:
+    print("  pyrealsense2 不可用：%s" % exc)
+PY
 fi
 
 if [[ "$WITH_VOICE" == "1" ]]; then
