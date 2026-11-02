@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    # The deployment target. Running CI on the same release a customer gets
+    # means a green build is evidence the code installs there.
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.9"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+
+      - name: Install system libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libgl1 libglib2.0-0
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Import check
+        run: |
+          python -c "import heacon.config, heacon.motion.route, heacon.http.app"
+          python -c "import heacon.vision.geometry, heacon.vision.body, heacon.vision.synthetic"
+
+      - name: Config resolves
+        run: python main.py --print-config
+
+      - name: Tests (simulated arm, no hardware)
+        env:
+          HEACON_SIMULATE: "1"
+        run: python -m pytest tests/ -q
+
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff
+      # Non-blocking for now: the motion code came from the field and is being
+      # tidied incrementally. Tighten this once the tree is clean.
+      - run: ruff check heacon main.py tests --exit-zero
