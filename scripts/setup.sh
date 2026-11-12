@@ -5,7 +5,6 @@
 #   scripts/setup.sh --camera     # also install the RealSense packages
 #   scripts/setup.sh --voice      # also download the 65 MB speech model
 #
-# After this, `python main.py --simulate` works with no hardware at all.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -83,8 +82,8 @@ cat <<'EOF'
 
 完成。接下来：
 
-  无硬件试用：  source .venv/bin/activate && python main.py --simulate
-  现场启动：    source .venv/bin/activate && python main.py all
+  自检：        source .venv/bin/activate && python scripts/check_force_control.py
+  启动：        source .venv/bin/activate && python main.py all
 
 现场部署用 systemd，见 deploy/systemd/README.md。
 EOF

@@ -265,14 +265,6 @@ def camera_basis(joints, pose):
 
 
 def camera_bgr():
-    if config.SIMULATE:
-        # No hardware on a CI box or a fresh deployment: a stand-in frame lets
-        # the recognition and motion pipeline run end to end.
-        from heacon.vision.synthetic import synthetic_frame
-
-        frame = synthetic_frame()
-        note_frame_size(frame)
-        return frame
     frame = cv2.imdecode(np.frombuffer(camera_jpeg(), np.uint8), cv2.IMREAD_COLOR)
     if frame is None:
         raise RuntimeError("摄像头画面无法读取")
@@ -423,14 +415,6 @@ def _placeholder_jpeg():
 
 def camera_view_jpeg():
     """Always a JPEG for the operator page. Recognition still uses camera_jpeg()."""
-    if config.SIMULATE:
-        from heacon.vision.synthetic import synthetic_frame
-
-        frame = synthetic_frame()
-        note_frame_size(frame)
-        ok, encoded = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
-        if ok:
-            return encoded.tobytes(), "simulated"
     color = _color_jpeg(max_age=2.0)
     if color is not None:
         return color, "live"

@@ -7,8 +7,6 @@ shoulders, scapula, L2, L4 — then every plan reads those same points.
 import cv2
 import numpy as np
 
-import heacon.config as config
-
 # The body drawing used by the page. Neck is the small Y, the low back is larger.
 NECK_Y = 210.0
 HIP_Y = 560.0
@@ -21,22 +19,13 @@ def find_body(image):
 
     只用 hybrid_geom 深度几何布点。旧的轮廓/肤色/深度回退已切断，
     避免错误穴位图覆盖正确结果。
-
-    唯一的例外是 HEACON_SIMULATE=1：那时没有真摄像头，也就没有深度图，
-    hybrid_geom 的深度分支必然返回 None。用合成深度喂同一个算法，让 CI 和
-    无硬件部署也能跑完整流程；真实部署上这条分支永远不会走。
     """
     if image is None or image.size == 0:
         return None
     try:
         from heacon.vision import hybrid_geom
 
-        depth = _live_depth(image)
-        if depth is None and config.SIMULATE:
-            from heacon.vision.synthetic import synthetic_depth
-
-            depth = synthetic_depth(image.shape)
-        return hybrid_geom.recognize(image, depth)
+        return hybrid_geom.recognize(image, _live_depth(image))
     except Exception as exc:
         print("[heacon] hybrid locate skipped: %s" % exc, flush=True)
         return None

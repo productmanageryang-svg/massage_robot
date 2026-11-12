@@ -200,16 +200,9 @@ The script keeps `/etc/heacon` and the calibration untouched.
 
 ---
 
-## 6. Running without hardware
+## 6. No hardware fallback
 
-Useful for demos, for a developer laptop, and for CI:
-
-```bash
-cd /opt/heacon      # or a checkout
-source .venv/bin/activate
-python main.py --simulate
-```
-
-`--simulate` swaps in a fake arm and a synthetic camera frame. The whole
-service flow runs — route, gestures, force goals — with no robot and no
-camera attached. It is not a substitute for acceptance testing on hardware.
+There is none. Recognition segments the body by depth and force control reads
+a real sensor, so neither can be faked without changing what is being tested.
+With no camera the page shows "missing"; with no arm it shows "设备已离线".
+Both are correct states, not faults.

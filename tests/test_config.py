@@ -50,7 +50,7 @@ def test_camera_backend_is_a_known_value():
 
 def test_describe_lists_what_an_engineer_needs():
     described = config.describe()
-    for key in ("robot", "console", "tablet_https", "simulate", "camera_backend"):
+    for key in ("robot", "console", "tablet_https", "camera_backend"):
         assert key in described
 
 

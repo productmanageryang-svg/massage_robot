@@ -13,7 +13,6 @@ reason is almost always one of:
   * the robot TCP endpoint is not reachable (wrong IP / firewalled)
   * the arm is not in standby (FSM 33)
   * the force-torque sensor is absent, so `force_control_on` is refused
-  * HEACON_SIMULATE=1 is still set, so the fake arm answers instead
 
 Each check below prints PASS / FAIL and what to do about a FAIL. Exit code is
 0 only when everything a service needs is ready.
@@ -42,18 +41,6 @@ def record(name: str, status: str, detail: str = "") -> None:
     if detail:
         line += " — " + detail
     print(line, flush=True)
-
-
-def check_simulate() -> None:
-    if config.SIMULATE:
-        record(
-            "simulate",
-            WARN,
-            "HEACON_SIMULATE=1：现在连的是假机械臂，力位混合不会真的作用在硬件上。"
-            "现场必须改成 0。",
-        )
-    else:
-        record("simulate", PASS, "真实机械臂模式")
 
 
 def check_config() -> None:
@@ -192,7 +179,6 @@ def check_daemon() -> None:
 
 def main() -> int:
     print("HEACON 力位混合自检\n" + "=" * 60)
-    check_simulate()
     check_config()
     check_calibration()
     check_robot()

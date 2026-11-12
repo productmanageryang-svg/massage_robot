@@ -1,4 +1,4 @@
-"""Shared fixtures. Every test runs against the simulator, never hardware."""
+"""Shared fixtures. Tests must never touch real hardware."""
 
 from __future__ import annotations
 
@@ -19,7 +19,6 @@ def _isolate(tmp_path, monkeypatch):
     monkeypatch.setenv("HEACON_RUNTIME_DIR", str(tmp_path / "runtime"))
     monkeypatch.setenv("HEACON_CONFIG_DIR", str(REPO_ROOT / "config"))
     monkeypatch.setenv("HEACON_LOG_DIR", str(tmp_path / "logs"))
-    monkeypatch.setenv("HEACON_SIMULATE", "1")
 
     # config is imported once; reload so the env vars above take effect.
     import importlib

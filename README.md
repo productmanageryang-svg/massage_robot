@@ -29,17 +29,22 @@ TCP 直接控制机械臂，所以**只要网络能通到机械臂，笔记本�
 
 ---
 
-## 一分钟上手（无硬件也能跑）
+## 上手
 
 ```bash
 git clone <repo-url> && cd massage_robot
-scripts/setup.sh
+scripts/setup.sh --all
 source .venv/bin/activate
-python main.py --simulate
+python main.py --print-config     # 确认机械臂地址和端口
+python scripts/check_force_control.py   # 自检：机械臂、力控、标定
+python main.py all
 ```
 
-打开 <http://127.0.0.1:8765/>。`--simulate` 用假机械臂和合成画面，整条流程都能走。
-不需要机械臂，不需要摄像头。
+打开 <http://127.0.0.1:8765/>。
+
+**必须接真机械臂和真摄像头**，没有模拟模式：识别依赖深度图，力控依赖真实力
+传感器，两者都无法用假数据代替。机械臂连不上时控制台会显示「设备已离线」，
+这是预期行为，不是故障。
 
 ---
 
@@ -96,7 +101,6 @@ heacon/
   camera_daemon.py      RealSense 采集（彩色 + 深度），唯一打开摄像头的进程
   robot/
     client.py           华炎 TCP 客户端
-    simulator.py        假机械臂（HEACON_SIMULATE=1）
   motion/
     route.py            服务状态机：走线、贴穴、手法、力控
     constants.py        调机参数（改这里会改变手感）
@@ -106,7 +110,6 @@ heacon/
     hybrid_geom.py      穴位识别（MediaPipe + 深度几何）★ 核心
     body.py             识别入口，只走 hybrid_geom
     geometry.py         相机坐标 ↔ 机械臂坐标
-    synthetic.py        合成画面（仅模拟模式）
   voice/                平板语音识别与提示音
   http/
     app.py              控制台 8765 + 控制 API
@@ -153,7 +156,6 @@ runtime/depth-live.png     深度图（给识别用）
 | `HEACON_ROBOT_HOST` | `192.168.0.10` | 机械臂 IP |
 | `HEACON_HTTP_PORT` | `8765` | 控制台端口 |
 | `HEACON_HTTPS_PORT` | `8766` | 平板入口端口 |
-| `HEACON_SIMULATE` | `0` | `1` = 假机械臂，**现场必须为 0** |
 | `HEACON_RUNTIME_DIR` | `./runtime` | 帧、日志、证书 |
 | `HEACON_CONFIG_DIR` | `./config` | 标定文件 |
 
@@ -165,7 +167,8 @@ runtime/depth-live.png     深度图（给识别用）
 .venv/bin/python -m pytest tests/ -q
 ```
 
-全部跑在假机械臂上，不需要硬件。
+测试只覆盖不依赖硬件的部分：配置解析、方案表完整性、参数抽取一致性。
+识别和力控必须在真机上验证，没有模拟替代。
 
 ---
 

@@ -14,7 +14,6 @@ HEACON_HTTPS_PORT      tablet HTTPS port              (default 8766)
 HEACON_RUNTIME_DIR     writable scratch dir           (default <repo>/runtime)
 HEACON_CONFIG_DIR      calibration and taught poses   (default <repo>/config)
 HEACON_WEB_DIR         page bundle served on 8765     (default <repo>/web)
-HEACON_SIMULATE        1 = fake arm, no TCP to robot  (default 0)
 HEACON_CAMERA_BACKEND  auto | macos | linux | none    (default auto)
 HEACON_LOG_DIR         where service logs go          (default <runtime>/logs)
 """
@@ -75,10 +74,6 @@ CAMERA_SERVER_HOST = _text("HEACON_CAMERA_HOST", "127.0.0.1")
 CAMERA_SERVER_PORT = _number("HEACON_CAMERA_PORT", 8771)
 
 # --- behaviour -------------------------------------------------------------
-
-#: Fake arm. Lets a fresh clone boot with no robot, and lets CI exercise the
-#: service state machine on a machine that has no hardware attached.
-SIMULATE = _flag("HEACON_SIMULATE", False)
 
 #: "macos" needs the root capture daemon; "linux" talks to the D435i directly.
 CAMERA_BACKEND = _text("HEACON_CAMERA_BACKEND", "auto").lower()
@@ -147,6 +142,5 @@ def describe() -> dict:
         "runtime_dir": str(RUNTIME_DIR),
         "config_dir": str(CONFIG_DIR),
         "web_dir": str(WEB_DIR),
-        "simulate": SIMULATE,
         "camera_backend": camera_backend(),
     }

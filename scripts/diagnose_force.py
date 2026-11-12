@@ -53,7 +53,6 @@ def section_environment() -> None:
     cfg = config.describe()
     for key in ("robot", "console", "runtime_dir", "config_dir", "web_dir"):
         kv(key, cfg[key])
-    kv("HEACON_SIMULATE", cfg["simulate"], "必须为 False，否则连的是假机械臂")
     kv("camera_backend", cfg["camera_backend"])
 
     for label, pkg in (("numpy", "numpy"), ("opencv", "cv2"), ("pyrealsense2", "pyrealsense2")):

@@ -18,10 +18,6 @@ ExecStart=/opt/heacon/.venv/bin/python /opt/heacon/main.py console
 Restart=always
 RestartSec=3
 
-# The arm is real here. Turning on the simulator in production would make the
-# console report a fake pose while the hardware stands still.
-Environment=HEACON_SIMULATE=0
-
 # Give the controller time to close its socket on shutdown instead of leaving
 # a half-open session that faults on the next connect.
 KillSignal=SIGTERM

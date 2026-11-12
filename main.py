@@ -76,11 +76,6 @@ def main() -> int:
         choices=sorted(COMMANDS),
         help="要启动的进程，默认 console",
     )
-    parser.add_argument(
-        "--simulate",
-        action="store_true",
-        help="使用假机械臂，不需要真机也能跑完整流程",
-    )
     parser.add_argument("--print-config", action="store_true", help="打印解析后的配置后退出")
     args = parser.parse_args()
 
@@ -88,9 +83,6 @@ def main() -> int:
         for key, value in config.describe().items():
             print("%-16s %s" % (key, value))
         return 0
-
-    if args.simulate:
-        os.environ["HEACON_SIMULATE"] = "1"
 
     COMMANDS[args.command]()
     return 0

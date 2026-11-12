@@ -8,12 +8,15 @@ on:
 
 jobs:
   test:
-    # The deployment target. Running CI on the same release the customer gets
-    # means a green build is evidence the code installs there.
+    # The deployment target: Ubuntu 24.04 is what the NUC runs, and
+    # requirements.txt pins versions that need Python 3.11+.
     #
-    # Only 3.12 is tested: requirements.txt pins the versions the NUC was
-    # verified with (scipy 1.16, mediapipe 0.10.18), and those need 3.11+.
-    # Ubuntu 24.04 ships 3.12, which is what the field machine runs.
+    # What CI can honestly check: the tree installs, every module imports, the
+    # config resolves, the plan tables are coherent, and the tuning constants
+    # survive being split into their own module. What it cannot check is
+    # recognition accuracy or force behaviour — both need the real arm and
+    # camera. There is no simulator here on purpose: a fake stand-in would let
+    # CI pass while the real machine misbehaves.
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -39,11 +42,6 @@ jobs:
           pip install -r requirements.txt
           pip install pytest
 
-      - name: Fetch recognition models
-        # 37 MB of MediaPipe task files. Without them hybrid_geom cannot detect
-        # a body, so the smoke test would fail for the wrong reason.
-        run: bash scripts/fetch-models.sh
-
       - name: Import check
         run: |
           python -c "import heacon.config, heacon.motion.route, heacon.http.app"
@@ -52,14 +50,12 @@ jobs:
       - name: Config resolves
         run: python main.py --print-config
 
-      - name: Tests (simulated arm, no hardware)
-        env:
-          HEACON_SIMULATE: "1"
+      - name: Tests (no hardware required)
         run: python -m pytest tests/ -q
 
   no-mediapipe:
-    # Recognition is optional at import time: a deployment without mediapipe
-    # must still boot and serve the page, it just cannot start a service.
+    # Recognition is optional at import time: a machine without mediapipe must
+    # still boot and serve the page. It just cannot start a service.
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -72,11 +68,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install numpy opencv-python-headless pytest
       - name: Console still boots without the recogniser
-        env:
-          HEACON_SIMULATE: "1"
         run: |
           python -c "import heacon.http.app; print('console imports without mediapipe')"
           python main.py --print-config
+          python -m pytest tests/ -q
 
   lint:
     runs-on: ubuntu-24.04
