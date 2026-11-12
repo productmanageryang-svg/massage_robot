@@ -8,13 +8,17 @@ on:
 
 jobs:
   test:
-    # The deployment target. Running CI on the same release a customer gets
+    # The deployment target. Running CI on the same release the customer gets
     # means a green build is evidence the code installs there.
+    #
+    # Only 3.12 is tested: requirements.txt pins the versions the NUC was
+    # verified with (scipy 1.16, mediapipe 0.10.18), and those need 3.11+.
+    # Ubuntu 24.04 ships 3.12, which is what the field machine runs.
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.12", "3.9"]
+        python: ["3.12"]
 
     steps:
       - uses: actions/checkout@v4
@@ -27,17 +31,23 @@ jobs:
       - name: Install system libraries
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq libgl1 libglib2.0-0
+          sudo apt-get install -y -qq libgl1 libglib2.0-0 libegl1 libgles2
 
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements-dev.txt
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Fetch recognition models
+        # 37 MB of MediaPipe task files. Without them hybrid_geom cannot detect
+        # a body, so the smoke test would fail for the wrong reason.
+        run: bash scripts/fetch-models.sh
 
       - name: Import check
         run: |
           python -c "import heacon.config, heacon.motion.route, heacon.http.app"
-          python -c "import heacon.vision.geometry, heacon.vision.body, heacon.vision.synthetic"
+          python -c "import heacon.vision.geometry, heacon.vision.body, heacon.vision.hybrid_geom"
 
       - name: Config resolves
         run: python main.py --print-config
@@ -47,6 +57,27 @@ jobs:
           HEACON_SIMULATE: "1"
         run: python -m pytest tests/ -q
 
+  no-mediapipe:
+    # Recognition is optional at import time: a deployment without mediapipe
+    # must still boot and serve the page, it just cannot start a service.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libgl1 libglib2.0-0 libegl1 libgles2
+          python -m pip install --upgrade pip
+          pip install numpy opencv-python-headless pytest
+      - name: Console still boots without the recogniser
+        env:
+          HEACON_SIMULATE: "1"
+        run: |
+          python -c "import heacon.http.app; print('console imports without mediapipe')"
+          python main.py --print-config
+
   lint:
     runs-on: ubuntu-24.04
     steps:
@@ -55,6 +86,6 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install ruff
-      # Non-blocking for now: the motion code came from the field and is being
-      # tidied incrementally. Tighten this once the tree is clean.
+      # Non-blocking: the motion code came from the field and is being tidied
+      # incrementally. Tighten once the tree is clean.
       - run: ruff check heacon main.py tests --exit-zero
