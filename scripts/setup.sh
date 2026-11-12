@@ -82,8 +82,11 @@ cat <<'EOF'
 
 完成。接下来：
 
-  自检：        source .venv/bin/activate && python scripts/check_force_control.py
+  硬件自检：    source .venv/bin/activate && python scripts/check_hardware.py
+  力控自检：    source .venv/bin/activate && python scripts/check_force_control.py
   启动：        source .venv/bin/activate && python main.py all
+
+换电脑 / 换相机时，先跑 check_hardware.py，详见 docs/从零部署.md
 
 现场部署用 systemd，见 deploy/systemd/README.md。
 EOF

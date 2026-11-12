@@ -125,8 +125,26 @@ fi
 
 echo "==> systemd"
 install -m 644 "$DEST"/deploy/systemd/*.service /etc/systemd/system/
+
+# /usr/local/sbin is on root's PATH for ExecStart; the unit names it absolutely.
+install -m 755 "$DEST/deploy/systemd/heacon-wait-net" /usr/local/sbin/heacon-wait-net
+
+# Drop-in overrides. Without these, a cold boot starts the console before the
+# robot subnet exists and the operator sees 设备已离线 until a manual restart.
+for unit in heacon-console heacon-tablet; do
+  install -d "/etc/systemd/system/${unit}.service.d"
+  install -m 644 "$DEST/deploy/systemd/${unit}.service.d/wait-net.conf" \
+    "/etc/systemd/system/${unit}.service.d/wait-net.conf"
+done
+install -d /etc/systemd/system/heacon-camera.service.d
+install -m 644 "$DEST/deploy/systemd/heacon-camera.service.d/restart.conf" \
+  /etc/systemd/system/heacon-camera.service.d/restart.conf
+
 systemctl daemon-reload
-systemctl enable heacon-console heacon-tablet heacon-camera >/dev/null
+systemctl enable heacon-wait-net heacon-console heacon-tablet heacon-camera >/dev/null
+
+# The service user must be able to open the camera without sudo.
+usermod -aG video "$USER_NAME" 2>/dev/null || true
 
 if [[ "$DO_START" == "1" ]]; then
   systemctl restart heacon-camera heacon-console heacon-tablet

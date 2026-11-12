@@ -1,0 +1,18 @@
+[Unit]
+Description=Wait for an address on the HEACON robot subnet
+Documentation=file:/opt/heacon/docs/从零部署.md
+After=NetworkManager.service network-online.target
+Wants=NetworkManager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/heacon-wait-net
+RemainAfterExit=yes
+# Must be shorter than the default boot timeout, and long enough for WiFi
+# association on a cold start (the field NUC needed about 40 s).
+TimeoutStartSec=100
+Environment=HEACON_ROBOT_SUBNET=192.168.0.
+Environment=HEACON_WAIT_SECONDS=90
+
+[Install]
+WantedBy=multi-user.target

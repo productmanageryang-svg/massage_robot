@@ -32,15 +32,19 @@ TCP 直接控制机械臂，所以**只要网络能通到机械臂，笔记本�
 ## 上手
 
 ```bash
-git clone <repo-url> && cd massage_robot
+git clone https://github.com/productmanageryang-svg/massage_robot.git
+cd massage_robot
 scripts/setup.sh --all
 source .venv/bin/activate
-python main.py --print-config     # 确认机械臂地址和端口
-python scripts/check_force_control.py   # 自检：机械臂、力控、标定
-python main.py all
+
+python main.py --print-config          # 确认机械臂地址和端口
+python scripts/check_hardware.py       # 自检：网络、机械臂、相机、标定
+python main.py all                     # 启动
 ```
 
 打开 <http://127.0.0.1:8765/>。
+
+**完整步骤见 [`docs/从零部署.md`](docs/从零部署.md)**，包括换电脑、换相机的全过程。
 
 **必须接真机械臂和真摄像头**，没有模拟模式：识别依赖深度图，力控依赖真实力
 传感器，两者都无法用假数据代替。机械臂连不上时控制台会显示「设备已离线」，

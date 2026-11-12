@@ -1,0 +1,34 @@
+#!/bin/bash
+# Wait until this machine has an address on the robot's subnet.
+#
+# The console, gateway and camera all talk to hardware on 192.168.0.0/24
+# (arm at .10). Starting them before the interface is up makes the first
+# connection fail, and on a cold boot that shows up as "设备已离线" that only
+# clears after a manual restart. This unit removes that race.
+#
+# The field NUC version hard-codes `wlo1` and `192.168.0.100`. That is correct
+# for that machine but wrong for any other, so this version finds the interface
+# itself. Behaviour is the same: exit 0 once an address on the subnet appears,
+# and exit 0 anyway after the timeout so a unit depending on it never hangs
+# forever.
+#
+# Environment (all optional):
+#   HEACON_ROBOT_SUBNET   prefix to look for      (default 192.168.0.)
+#   HEACON_WAIT_SECONDS   how long to wait        (default 90)
+set -u
+
+SUBNET="${HEACON_ROBOT_SUBNET:-192.168.0.}"
+WAIT="${HEACON_WAIT_SECONDS:-90}"
+
+for _ in $(seq 1 "$WAIT"); do
+    # Any interface, including ones that appear late (USB ethernet, WiFi).
+    if ip -4 -o addr show 2>/dev/null | grep -q "inet ${SUBNET}"; then
+        exit 0
+    fi
+    sleep 1
+done
+
+# Timed out. Do not block dependents: report and let the services try anyway,
+# because a network that comes up late is better than a system that never boots.
+echo "heacon-wait-net: no address on ${SUBNET}0/24 after ${WAIT}s" >&2
+exit 0
