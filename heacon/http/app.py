@@ -1,16 +1,13 @@
-"""The console: serves the operator page and exposes the control API.
-
-Boot it with ``python -m heacon.http.app``. It owns the single robot handle and
-the keep-awake thread that holds the arm in standby while a session is open.
-"""
-
-from __future__ import annotations
+"""Local gateway: serves the HEACON page and talks to the robot."""
 
 import json
+import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import heacon.config as config
 from heacon.motion import demo
@@ -643,9 +640,9 @@ def _keep_awake():
                         _note_fail()
                         note = ("recover", _phase_message("recovering"))
             else:
-                _want_collide(_NORMAL_COLLIDE_LEVEL)
-                if _lock_when_idle:
-                    _ensure_offline_lock()
+                # 没有会话时不要主动下使能。
+                # 只有操作员明确断开（_stop_session / _lock）才锁机械臂。
+                # 这里如果每 6 秒发一次 GrpDisable，平板一抖动就会“反复上锁解锁”。
                 robot.close()
                 note = ("idle", "设备已离线")
             if note != last:
@@ -658,13 +655,13 @@ def _keep_awake():
 
 
 def run():
-    """Start the console. Called by ``python -m heacon.http.app`` and by main.py."""
+    """Start the console. Called by ``python main.py console``."""
     config.ensure_dirs()
     if not HTML.is_file():
         raise SystemExit(
             "找不到操作页面 %s\n"
-            "web/mmrobot-ui.html 应该随仓库一起发布；如果你在部署机上，"
-            "请确认 HEACON_WEB_DIR 指向正确的位置。" % HTML
+            "web/mmrobot-ui.html 应随仓库发布；部署机上检查 HEACON_WEB_DIR。"
+            % HTML
         )
     print("[heacon] config", config.describe(), flush=True)
     try:

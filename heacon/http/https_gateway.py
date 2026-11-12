@@ -1,8 +1,4 @@
-"""HTTPS front door so the tablet can use its microphone. Proxies the console.
-
-The browser only grants microphone access on a secure origin, so the tablet
-talks to 8766 and this process relays to the plain HTTP console on 8765.
-"""
+"""HTTPS front door so the tablet can open the microphone. Proxies the console."""
 
 from __future__ import annotations
 
@@ -178,24 +174,15 @@ def run():
     """Start the tablet door. Needs a certificate; see scripts/gen-cert.sh."""
     config.ensure_dirs()
     if not CERT.is_file() or not KEY.is_file():
-        raise SystemExit(
-            "缺少平板用的 HTTPS 证书：%s\n"
-            "运行 scripts/gen-cert.sh 生成，或用 HEACON_RUNTIME_DIR 指向已有证书的目录。"
-            % CERT
-        )
-    print("[heacon] https config", config.describe(), flush=True)
+        raise SystemExit("missing TLS cert")
     print("loading voice model", flush=True)
     stt._load_vosk()
     print("voice model ready", flush=True)
     Gateway.tls = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     Gateway.tls.load_cert_chain(str(CERT), str(KEY))
     server = Gateway((HOST, PORT), Handler)
-    print(f"HEACON 平板入口：https://0.0.0.0:{PORT}", flush=True)
+    print(f"HEACON HTTPS：https://192.168.0.100:{PORT}", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         print("\n已停止")
-
-
-if __name__ == "__main__":
-    run()

@@ -61,8 +61,11 @@ except Exception as exc:
 PY
 fi
 
+echo "==> 识别模型（MediaPipe，必需）"
+scripts/fetch-models.sh
+
 if [[ "$WITH_VOICE" == "1" ]]; then
-  echo "==> 下载语音模型"
+  echo "==> 语音模型（可选）"
   scripts/fetch-voice-model.sh
 fi
 

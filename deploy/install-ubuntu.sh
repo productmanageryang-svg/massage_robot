@@ -111,6 +111,10 @@ else
   echo "  保留已有证书"
 fi
 
+echo "==> 识别模型（MediaPipe，必需）"
+sudo -u "$USER_NAME" HEACON_RUNTIME_DIR="$STATE" "$DEST/scripts/fetch-models.sh" \
+  || echo "  下载失败；没有模型无法识别穴位，服务起不来"
+
 echo "==> 语音模型（可选）"
 if [[ -d "$STATE/models/vosk-small-cn" ]]; then
   echo "  已存在"

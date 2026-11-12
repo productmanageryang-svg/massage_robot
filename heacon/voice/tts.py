@@ -1,15 +1,12 @@
 """Gentle female Mandarin clips for the run-page voice helper."""
 
-from __future__ import annotations
-
 import asyncio
 import hashlib
 import re
-
-import heacon.config as config
+from pathlib import Path
 
 VOICE = "zh-CN-XiaoxiaoNeural"
-VOICE_DIR = config.WEB_DIR / "voices"
+VOICE_DIR = Path(__file__).resolve().parent / "voices"
 _SAFE = re.compile(r"[^\u4e00-\u9fffA-Za-z0-9，。！？、：；“”‘’…,.!?;: ]+")
 
 

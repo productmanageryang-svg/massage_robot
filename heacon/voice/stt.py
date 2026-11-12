@@ -1,19 +1,12 @@
-"""Speech to text for tablet voice commands.
-
-The Vosk model is a 65 MB download, so it is not in the repo. Run
-``scripts/fetch-voice-model.sh`` once; this module looks for it in the runtime
-directory and degrades to Google's recogniser if it is absent.
-"""
-
-from __future__ import annotations
+"""Offline-ish speech-to-text for tablet voice. Runs on the Mac, which has internet."""
 
 import io
 import json
 import wave
+from pathlib import Path
 
-import heacon.config as config
-
-MODEL_DIR = config.MODEL_DIR
+ROOT = Path(__file__).resolve().parent
+MODEL_DIR = ROOT / "models" / "vosk-small-cn"
 
 _model = None
 _google = None

@@ -7,6 +7,8 @@ shoulders, scapula, L2, L4 — then every plan reads those same points.
 import cv2
 import numpy as np
 
+import heacon.config as config
+
 # The body drawing used by the page. Neck is the small Y, the low back is larger.
 NECK_Y = 210.0
 HIP_Y = 560.0
@@ -17,45 +19,32 @@ RIGHT_X = 400.0
 def find_body(image):
     """Return the upper-body axis in pixels, or None when the picture has no clear body.
 
-    Depth is preferred: the table is flat and the person is the raised blob.
-    A clothed silhouette is next — skin color is not required.
-    The beige-plate fallback is only for a bare mannequin when GrabCut fails.
+    只用 hybrid_geom 深度几何布点。旧的轮廓/肤色/深度回退已切断，
+    避免错误穴位图覆盖正确结果。
+
+    唯一的例外是 HEACON_SIMULATE=1：那时没有真摄像头，也就没有深度图，
+    hybrid_geom 的深度分支必然返回 None。用合成深度喂同一个算法，让 CI 和
+    无硬件部署也能跑完整流程；真实部署上这条分支永远不会走。
     """
     if image is None or image.size == 0:
         return None
-    depth = _live_depth(image)
-    if depth is not None:
-        raised = _depth_overhead(image, depth)
-        if raised is not None:
-            return raised
-    if image.ndim == 3:
-        clean = _strip_overlay(image)
-        silhouette = _silhouette_overhead(clean)
-        if silhouette is not None:
-            return silhouette
-        shape = _shape_overhead(clean)
-        if shape is not None:
-            return shape
-        color = _color_overhead(clean)
-        if color is not None:
-            return color
-        image = clean
-    upper = person_line(image)
-    if upper is not None and not upper.get("head_clipped"):
-        _ensure_landmarks(upper)
-        return upper
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if image.ndim == 3 else image
-    classic = _classic_body(gray)
-    plate = _plate_body(gray)
-    body = _prefer(classic, plate, gray.shape)
-    if body is not None:
-        _ensure_landmarks(body)
-    return body
+    try:
+        from heacon.vision import hybrid_geom
+
+        depth = _live_depth(image)
+        if depth is None and config.SIMULATE:
+            from heacon.vision.synthetic import synthetic_depth
+
+            depth = synthetic_depth(image.shape)
+        return hybrid_geom.recognize(image, depth)
+    except Exception as exc:
+        print("[heacon] hybrid locate skipped: %s" % exc, flush=True)
+        return None
 
 
 def _live_depth(image):
     try:
-        import vision
+        from heacon.vision import geometry as vision
     except ImportError:
         return None
     try:

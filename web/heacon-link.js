@@ -1,4 +1,39 @@
 (function () {
+  // 离线环境：掐掉页面框架对外部图标 CDN 的请求，避免它无限重试拖垮轮询。
+  const BLOCKED = ["api.simplesvg.com", "api.unisvg.com", "iconify.design"];
+  try {
+    const nativeFetch = window.fetch;
+    if (nativeFetch) {
+      window.fetch = function (input, init) {
+        const url = typeof input === "string" ? input : (input && input.url) || "";
+        if (BLOCKED.some(function (host) { return url.indexOf(host) >= 0; })) {
+          return Promise.reject(new TypeError("offline: blocked " + url));
+        }
+        return nativeFetch.apply(this, arguments);
+      };
+    }
+  } catch (e) {}
+  try {
+    const nativeOpen = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function (method, url) {
+      const href = String(url || "");
+      if (BLOCKED.some(function (host) { return href.indexOf(host) >= 0; })) {
+        this.__heaconBlocked = true;
+      }
+      return nativeOpen.apply(this, arguments);
+    };
+    const nativeSend = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.send = function () {
+      if (this.__heaconBlocked) {
+        this.dispatchEvent(new Event("error"));
+        return;
+      }
+      return nativeSend.apply(this, arguments);
+    };
+  } catch (e) {}
+})();
+
+(function () {
   if (window.__heaconLinked) return;
   window.__heaconLinked = true;
   if (shouldUseHttpsDoor()) {
@@ -9,7 +44,7 @@
   const CAM_MS = 400;
   const POLL_MS = 700;
   const STATE_MISS_WEAK = 3;
-  const STATE_MISS_LOCK = 10;
+  const STATE_MISS_LOCK = 25;
   let liveTimer = 0;
   let pollTimer = 0;
   let heaconPoints = null;
@@ -37,6 +72,15 @@
   let lockRequested = false;
   let lastFitKey = "";
   let positionWait = null;
+  // 这些状态在 IIFE 初始化阶段（startPoll）就会用到，必须先声明，避免暂时性死区。
+  let armGateBusy = false;
+  let lastLinkActAt = 0;
+  let linkActing = false;
+  const NET_TIMEOUT_MS = 3500;
+  // 页面刚打开时先静默观察一段时间，避免用残留状态把机械臂锁掉。
+  const SESSION_GRACE_MS = 6000;
+  const pageOpenedAt = Date.now();
+  let sawLiveThisPage = false;
 
   const original = {
     confirmPlan: window.confirmPlan,
@@ -80,7 +124,7 @@
       ".body-stage.is-live{background:#1c1a18}",
       ".body-stage.is-live .body-stage-figure,.body-stage-figure.heacon-hidden{display:none!important}",
       ".heacon-live-tag{position:absolute;top:10px;left:10px;z-index:5;font-size:11px;font-weight:600;color:#fff;background:#ff6a1a;border-radius:999px;padding:3px 8px;letter-spacing:.04em}",
-      ".heacon-live-note{position:absolute;left:0;right:0;top:0;bottom:auto;z-index:6;display:none;align-items:center;justify-content:center;color:#fff;background:rgba(28,26,24,.78);font-size:14px;font-weight:600;text-align:center;padding:10px 16px;pointer-events:none}",
+      ".heacon-live-note{position:absolute;inset:0;z-index:6;display:none;align-items:center;justify-content:center;color:#fff;background:rgba(28,26,24,.42);font-size:15px;font-weight:600;text-align:center;padding:24px;pointer-events:none}",
       ".heacon-live-frame.is-wait .heacon-live-note,.heacon-live-frame.is-stale .heacon-live-note{display:flex}",
       ".body-stage--position.is-live>.relative:not(.heacon-live-frame){position:absolute;left:50%;bottom:56px;transform:translateX(-50%);z-index:3}",
       ".position-layout:has(.is-live),.confirm-layout:has(.is-live){align-items:stretch}",
@@ -496,7 +540,10 @@
       moving: !!(state.fsm === 25 || state.fsm === 27),
       fsm: state.fsm != null ? state.fsm : null,
     };
-    if (armLink.session || armLink.live) sawSession = true;
+    if (armLink.session || armLink.live) {
+      sawSession = true;
+      sawLiveThisPage = true;
+    }
     if (live && wasBusy) {
       hideLinkModal();
       showToast("设备已连接");
@@ -702,17 +749,37 @@
   }
 
   window.paintHeaconLink = paintLinkModal;
-  window.goHeaconLink = function () {
-    if (disconnecting) {
-      showToast("正在断开…");
+  window.goHeaconLink = async function () {
+    const now = Date.now();
+    // 一次点击会被页面内联 onclick、捕获阶段监听和本文件冒泡监听重复触发。
+    // 这里统一防抖 + 互斥，保证一次操作只发一个请求。
+    if (now - lastLinkActAt < 2500) return;
+    lastLinkActAt = now;
+    if (linkActing || disconnecting) {
       paintLinkModal();
       return;
     }
-    if (armSession()) {
-      startDisconnect();
-      return;
+    linkActing = true;
+    try {
+      // 以服务端真实状态为准，避免 UI 状态过期导致“点一下先断开再连上”。
+      let truth = null;
+      try {
+        truth = await get("/api/state");
+      } catch (err) {
+        truth = null;
+      }
+      if (truth) applyArmState(truth);
+      const reallyOn = !!(truth && (truth.session === true || truth.live === true));
+      if (reallyOn) {
+        linkActing = false;
+        await startDisconnect();
+        return;
+      }
+      linkActing = false;
+      await startConnect();
+    } finally {
+      linkActing = false;
     }
-    startConnect();
   };
 
   function bindLinkModal() {
@@ -739,6 +806,8 @@
       showToast("设备已连接");
       return;
     }
+    if (linkActing) return;
+    linkActing = true;
     armLink.phase = "connecting";
     paintDeviceChip();
     paintLinkModal();
@@ -768,6 +837,8 @@
       paintDeviceChip();
       paintLinkModal();
       showToast(err.message || "没有开始连接");
+    } finally {
+      linkActing = false;
     }
   }
 
@@ -778,6 +849,7 @@
     }
     disconnecting = true;
     unlocking = true;
+    linkActing = true;
     paintLinkModal();
     showToast("正在断开连接…");
     try {
@@ -796,6 +868,7 @@
     } finally {
       disconnecting = false;
       unlocking = false;
+      linkActing = false;
       paintDeviceChip();
       paintLinkModal();
     }
@@ -809,6 +882,8 @@
   }
 
   async function syncArmGate() {
+    if (armGateBusy) return;
+    armGateBusy = true;
     try {
       applyArmState(await get("/api/state"));
       stateMisses = 0;
@@ -818,26 +893,17 @@
       if (armSession() && stateMisses >= STATE_MISS_WEAK) {
         armLink.phase = "signal";
       }
-      if (sawSession && stateMisses >= STATE_MISS_LOCK && !lockRequested && !linkedRun) {
-        lockRequested = true;
-        post("/api/session/disconnect", {})
-          .then(function (data) {
-            if (data && data.ok === false) {
-              lockRequested = false;
-              return;
-            }
-            sawSession = false;
-            applyArmState(data || { phase: "offline", session: false, connected: false, live: false });
-            paintDeviceChip();
-            paintLinkModal();
-          })
-          .catch(function () {
-            lockRequested = false;
-          });
+      // 网络抖动只提示，不自动断开。
+      // 之前这里会自动 post session/disconnect，导致平板 WiFi 稍差就把机械臂锁掉，
+      // 表现就是操作员看到的“反复解锁上锁”。断开必须由操作员明确点击触发。
+      if (stateMisses >= STATE_MISS_LOCK && armSession()) {
+        armLink.phase = "signal";
       }
+    } finally {
+      paintDeviceChip();
+      paintLinkModal();
+      armGateBusy = false;
     }
-    paintDeviceChip();
-    paintLinkModal();
   }
 
   function wrapPage() {
@@ -846,6 +912,8 @@
       window.stepTo = function (id) {
         const ok = pageStepTo.apply(this, arguments);
         if (id === "position" && ok !== false) {
+          heaconPoints = null;
+          clearRouteOverlay();
           showLive("position");
           goScanPoseIfNeeded();
         }
@@ -853,6 +921,8 @@
       };
     }
     window.confirmPlan = function () {
+      heaconPoints = null;
+      clearRouteOverlay();
       original.confirmPlan();
       showLive("position");
       goScanPoseIfNeeded();
@@ -876,6 +946,7 @@
     };
     window.drawPoints = function () {
       if (heaconPoints) drawCameraPoints();
+      else if (pageCurrent() === "position") clearRouteOverlay();
       else original.drawPoints();
     };
     window.svgPoint = function (event) {
@@ -965,6 +1036,7 @@
       positionReady = false;
       stopVoiceListen();
       stopLive();
+      clearRouteOverlay();
       original.resetService();
     };
     window.startRun = function () {
@@ -1121,7 +1193,16 @@
     }, 350);
   }
 
+  function clearRouteOverlay() {
+    const layer = document.getElementById("pointLayer");
+    if (layer) layer.innerHTML = "";
+    const line = document.getElementById("routeLine");
+    if (line) line.setAttribute("points", "");
+  }
+
   async function realScan() {
+    heaconPoints = null;
+    clearRouteOverlay();
     const seq = ++scanSeq;
     scanBusy = true;
     show("scan");
@@ -1239,6 +1320,8 @@
   }
 
   async function mockScan() {
+    heaconPoints = null;
+    clearRouteOverlay();
     const seq = ++scanSeq;
     scanBusy = true;
     show("scan");
@@ -1379,9 +1462,16 @@
       frame.appendChild(note);
     }
     const svg = document.getElementById("bodyView");
-    if (svg && which === "confirm") {
+    // 画面 img 已经放进被 rotate(90deg) 的 .heacon-live-spin，
+    // 叠加层必须一起进去，否则穴位留在未旋转的坐标系里，整体错位。
+    // 原来只在 confirm 页搬，人体定位页不搬，所以那页的穴位必然偏。
+    if (svg) {
       svg.classList.add("is-live");
       if (svg.parentElement !== spin) spin.appendChild(svg);
+    }
+    if (which === "position") {
+      heaconPoints = null;
+      clearRouteOverlay();
     }
     document.querySelectorAll(".heacon-live-frame").forEach(function (el) {
       el.classList.toggle("is-aim", which === "position" && el === frame);
@@ -1546,7 +1636,12 @@
     const layer = $("#pointLayer");
     const svg = $("#bodyView");
     if (!layer || !svg || !heaconPoints) return;
-    svg.setAttribute("viewBox", "0 0 " + heaconFrame.width + " " + heaconFrame.height);
+    const fw = heaconFrame.width || 1280;
+    const fh = heaconFrame.height || 720;
+    svg.setAttribute("viewBox", "0 0 " + fw + " " + fh);
+    // 图片是 object-fit:contain，叠加层必须用同样的缩放规则才能像素级对齐。
+    // 早先留空（默认为 meet），在旋转容器里会被二次缩放，穴位整体滑出去。
+    svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
     svg.classList.add("is-live");
     const mark = pointMark();
     layer.innerHTML = heaconPoints
@@ -1727,9 +1822,22 @@
     return raw || "没有连上电脑";
   }
 
+  async function fetchWithTimeout(path, options) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(function () {
+      ctrl.abort();
+    }, NET_TIMEOUT_MS);
+    try {
+      const resp = await fetch(path, Object.assign({ signal: ctrl.signal }, options || {}));
+      return resp;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   async function get(path) {
     try {
-      const resp = await fetch(path, { cache: "no-store" });
+      const resp = await fetchWithTimeout(path, { cache: "no-store" });
       return readJson(resp);
     } catch (err) {
       throw new Error(netMessage(err));
@@ -1738,7 +1846,7 @@
 
   async function post(path, body) {
     try {
-      const resp = await fetch(path, {
+      const resp = await fetchWithTimeout(path, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body || {}),

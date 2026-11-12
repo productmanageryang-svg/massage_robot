@@ -38,6 +38,12 @@ def _tablet():
 
 
 def _camera():
+    """Colour + depth capture, written to the runtime dir for the console.
+
+    This is what the NUC ran: color_live.py writes color-live.jpg and
+    depth-live.png, and the console reads them. The depth image is required by
+    acupoint recognition, so this path is not optional.
+    """
     from heacon import camera_daemon
 
     camera_daemon.main()

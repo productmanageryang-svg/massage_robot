@@ -57,6 +57,8 @@ CONFIG_DIR = Path(_text("HEACON_CONFIG_DIR", str(REPO_ROOT / "config")))
 WEB_DIR = Path(_text("HEACON_WEB_DIR", str(REPO_ROOT / "web")))
 LOG_DIR = Path(_text("HEACON_LOG_DIR", str(RUNTIME_DIR / "logs")))
 MODEL_DIR = Path(_text("HEACON_MODEL_DIR", str(RUNTIME_DIR / "models" / "vosk-small-cn")))
+#: MediaPipe pose/hand .task files used by heacon.vision.hybrid_geom.
+MODEL_TASKS_DIR = Path(_text("HEACON_MODEL_TASKS_DIR", str(RUNTIME_DIR / "models")))
 
 # --- network ---------------------------------------------------------------
 
@@ -66,6 +68,11 @@ HTTP_HOST = _text("HEACON_HTTP_HOST", "0.0.0.0")
 HTTP_PORT = _number("HEACON_HTTP_PORT", 8765)
 HTTPS_HOST = _text("HEACON_HTTPS_HOST", "0.0.0.0")
 HTTPS_PORT = _number("HEACON_HTTPS_PORT", 8766)
+
+#: The colour camera runs as its own small HTTP service so the console never
+#: competes with it for the USB device. On the NUC both live on one machine.
+CAMERA_SERVER_HOST = _text("HEACON_CAMERA_HOST", "127.0.0.1")
+CAMERA_SERVER_PORT = _number("HEACON_CAMERA_PORT", 8771)
 
 # --- behaviour -------------------------------------------------------------
 
@@ -134,6 +141,7 @@ def describe() -> dict:
     """Printed on boot so a field engineer can see what this process resolved."""
     return {
         "robot": "%s:%d" % (ROBOT_HOST, ROBOT_PORT),
+        "camera_server": "%s:%d" % (CAMERA_SERVER_HOST, CAMERA_SERVER_PORT),
         "console": "%s:%d" % (HTTP_HOST, HTTP_PORT),
         "tablet_https": "%s:%d" % (HTTPS_HOST, HTTPS_PORT),
         "runtime_dir": str(RUNTIME_DIR),

@@ -1,21 +1,18 @@
-"""Full-colour capture for the RealSense D435i.
+"""Full-colour and depth capture for the RealSense D435i.
 
-One process owns the camera and writes the latest frame to the runtime
-directory; the console only reads those files. Keeping a single owner avoids
-two processes fighting over the USB device.
+One process owns the camera and writes both frames to the runtime directory;
+the console only reads them. Single ownership avoids two processes fighting
+over the USB device, and the depth image is what acupoint recognition needs.
 
 Platform notes
 --------------
-macOS
-    The colour sensor is only reachable from a root process, and OpenCV's
-    AVFoundation backend needs a shim. ``hid_stub.dylib`` is loaded when
-    present and the launchd job (``deploy/launchd``) runs this as root.
-Linux
-    No root and no shim are needed. Install ``pyrealsense2`` and the udev
-    rules from ``deploy/udev``, then run as the service user (``deploy/systemd``).
+Linux (the NUC deployment target)
+    No root, no shim. Install pyrealsense2 and the udev rules in deploy/udev,
+    run as the service user via deploy/systemd.
+macOS (the older Mac field machine)
+    The colour sensor is only reachable from a root process, so deploy/launchd
+    runs this as root with hid_stub.dylib loaded.
 """
-
-from __future__ import annotations
 
 import ctypes
 import json
@@ -25,12 +22,9 @@ import time
 
 import heacon.config as config
 
-# macOS only: lets a normal RealSense open succeed from this process.
+# macOS only: load the AVFoundation shim before the RealSense is opened.
 if sys.platform == "darwin":
-    for _stub in (
-        os.environ.get("HEACON_HID_STUB", ""),
-        "/usr/local/heacon/hid_stub.dylib",
-    ):
+    for _stub in (os.environ.get("HEACON_HID_STUB", ""), "/usr/local/heacon/hid_stub.dylib"):
         if _stub and os.path.isfile(_stub):
             try:
                 ctypes.CDLL(_stub, mode=ctypes.RTLD_GLOBAL)
@@ -91,11 +85,6 @@ def _calib(profile):
     print("calib", "linked" if "color_to_link" in payload else "intrinsics-only", flush=True)
 
 
-def _is_power_fail(exc):
-    text = str(exc).lower()
-    return "power state" in text or "failed to resolve" in text
-
-
 def _start_pipeline(rs):
     plans = (
         ((1280, 720, 15), (848, 480, 15)),
@@ -118,8 +107,6 @@ def _start_pipeline(rs):
         print("try %s+%s" % (color, depth), flush=True)
         try:
             profile = pipeline.start(config)
-            print("opened color %sx%s@%s depth %s" % (color[0], color[1], color[2], depth), flush=True)
-            return pipeline, profile
         except Exception as exc:
             last = exc
             print("skip %s+%s %s" % (color, depth, exc), flush=True)
@@ -127,9 +114,24 @@ def _start_pipeline(rs):
                 pipeline.stop()
             except Exception:
                 pass
-            if _is_power_fail(exc):
-                raise
-            time.sleep(0.8)
+            continue
+        # 有些机器开了深度流后 wait_for_frames 一直等不到帧。
+        # 这里真的收一帧确认，收不到就降级到下一个更简单的组合。
+        try:
+            probe = pipeline.wait_for_frames(4000)
+            got_color = probe.get_color_frame() is not None if depth is None else True
+            if not got_color:
+                raise RuntimeError("no color frame")
+        except Exception as exc:
+            print("no frames %s+%s %s" % (color, depth, exc), flush=True)
+            last = exc
+            try:
+                pipeline.stop()
+            except Exception:
+                pass
+            continue
+        print("opened color %sx%s@%s depth %s" % (color[0], color[1], color[2], depth), flush=True)
+        return pipeline, profile
     raise last
 
 
@@ -182,7 +184,8 @@ def _wait_for_camera(rs):
                     name = "camera"
                 print("found " + name, flush=True)
             _write_status(ok=False, usb=True, message="opening")
-            time.sleep(2.5)
+            if waited:
+                time.sleep(2.0)
             return
         _write_status(ok=False, usb=False, message="waiting for camera usb")
         if waited % 5 == 0:
@@ -216,9 +219,8 @@ def _capture_loop(rs, pipeline, profile):
             misses += 1
             print("wait " + str(exc), flush=True)
             _write_status(ok=False, usb=True, message="frame wait " + str(exc))
-            if misses >= 8:
+            if misses >= 4:
                 return
-            time.sleep(0.4)
             continue
         misses = 0
         color = frames.get_color_frame()
@@ -244,8 +246,6 @@ def _capture_loop(rs, pipeline, profile):
 def main():
     import pyrealsense2 as rs
 
-    config.ensure_dirs()
-    print("[heacon] camera", config.describe(), flush=True)
     print("start", flush=True)
     while True:
         pipeline = None
@@ -255,9 +255,8 @@ def main():
                 pipeline, profile = _start_pipeline(rs)
             except Exception as exc:
                 print("open failed " + str(exc), flush=True)
-                _write_status(ok=False, usb=False, message="open failed")
-                # hardware_reset here often knocks the D435i off USB on macOS.
-                time.sleep(6.0 if _is_power_fail(exc) else 2.0)
+                _reset_device(rs)
+                time.sleep(2.0)
                 continue
             _capture_loop(rs, pipeline, profile)
             print("pipeline stalled, reopening", flush=True)

@@ -19,10 +19,24 @@ import numpy as np
 
 from heacon.robot.client import RobotError
 from heacon.vision import body as body_route
-from heacon.motion import constants
+from heacon.motion.constants import *  # noqa: F401,F403 - tuned values
 from heacon.motion.plans import PLANS, POINT_TECH, TRAVEL_TECH, _EMPHASIS
 from heacon.vision import geometry as vision
-from heacon.motion.constants import *  # noqa: F401,F403 - tuned values, used throughout
+
+# Tip height above the calibrated table. Approved on site as 40 mm from skin.
+# Massage and moxibustion both use this as the work height, then offset by technique.
+# Allow the 16 mm press / peck dip under the 40 mm standoff, plus a little noise.
+# Pose for the 就位 step, taught on site 2026-10-29. The camera looks down at
+# the prone person from here. The arm returns to this pose on that step.
+# Same pose. A cropped view returns here instead of backing up in small steps.
+# Flange angles whose camera looks straight down. Tilting away from these faults a joint.
+# Semantic gaps from skin. The live flange pose at WORK_LIFT_MM is 40 mm.
+# Flange at WORK_LIFT_MM is 40 mm from skin. Moxa sits 30 mm above the acupoint.
+# Visible technique size. The low point is the approved work height.
+
+# Heavier massage points get the full press, knead, and push group.
+
+# Same drawing coordinates as pointSets in the page.
 
 _lock = threading.Lock()
 _stop = threading.Event()
@@ -729,9 +743,12 @@ def focus(index):
 
 def preview(plan_id, points=None):
     """Pixel positions of this plan on the current camera frame. The arm does not move."""
+    import importlib
     import time
 
 
+    body_route = importlib.reload(body_route)
+    importlib.reload(vision)
     plan = _plan(plan_id)
     frame = None
     bodies = []
@@ -1060,6 +1077,7 @@ def _roll_to_line(state, view, sign=1.0):
 
 def _roll_camera(state, degrees):
     """Keep the camera origin. Roll it about its look so the raw picture rotates."""
+    import numpy as np
 
     pose = state["pose"]
     model = vision.load_handeye()
@@ -1201,6 +1219,7 @@ def _place_step(robot, state, view):
 
 def _slide_by_pixels(state, view, du, dv):
     """Move the camera in its image axes. The picture itself is not warped."""
+    import numpy as np
 
     pose = state["pose"]
     _origin, axis_u, axis_v, _look = vision.camera_basis(state["joints"], pose)
@@ -1246,6 +1265,7 @@ def _center_line_pose(state, view):
 
 
 def _framing_pose(state, view):
+    import numpy as np
 
     pose = state["pose"]
     _origin, axis_u, axis_v, look = vision.camera_basis(state["joints"], pose)
@@ -1317,6 +1337,7 @@ def _drop_pose(pose, millimeters):
 
 
 def _off_vertical(state):
+    import numpy as np
 
     _origin, _axis_u, _axis_v, look = vision.camera_basis(state["joints"], state["pose"])
     down = -vision.up_vector()
@@ -1330,6 +1351,7 @@ def _level_toward_vertical(state, degrees, shift_mm=0.0):
     A pure turn has no path length, so the wrist snaps and a joint faults.
     The small sideways shift gives the turn a short, slow path.
     """
+    import numpy as np
 
     pose = state["pose"]
     model = vision.load_handeye()
@@ -1373,6 +1395,7 @@ def _level_toward_vertical(state, degrees, shift_mm=0.0):
 
 def _tilt_toward(state, view, home_angles):
     """Turn the camera a few degrees toward the head. Position stays put."""
+    import numpy as np
 
     pose = state["pose"]
     aim = view.get("aim") or view["center"]
@@ -1409,6 +1432,7 @@ def _tilt_toward(state, view, home_angles):
 
 
 def _rotate_about(axis, degrees):
+    import numpy as np
 
     x, y, z = (float(number) for number in axis)
     cosine = float(np.cos(np.deg2rad(degrees)))
@@ -1424,6 +1448,7 @@ def _rotate_about(axis, degrees):
 
 
 def _euler_near(rotation, reference):
+    import numpy as np
 
     horizontal = float(np.hypot(rotation[2, 1], rotation[2, 2]))
     ry = float(np.degrees(np.arctan2(-rotation[2, 0], horizontal)))
@@ -1662,7 +1687,9 @@ def _floor():
 
 def build_targets(plan_id, origin, joints, image, points=None):
     """Poses for one plan, from the body in this camera frame."""
+    import importlib
 
+    importlib.reload(vision)
 
     plan = _plan(plan_id)
     placed = _direct_pixels(plan, points)

@@ -1,8 +1,7 @@
-"""The four service plans: which acupoints, in what order, and which technique.
+"""The four service plans: acupoints, order, and technique per point.
 
-This is product content, not machine tuning. A therapist or product owner can
-change wording here without touching motion code. Coordinates are pixels in
-the 1280x720 canvas the page draws on, the same numbers ``pointSets`` uses.
+Product content, not machine tuning. Coordinates are pixels in the 1280x720
+canvas the page draws on.
 """
 
 from __future__ import annotations

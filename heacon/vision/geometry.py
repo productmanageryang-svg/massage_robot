@@ -266,8 +266,8 @@ def camera_basis(joints, pose):
 
 def camera_bgr():
     if config.SIMULATE:
-        # No RealSense on a CI box or a fresh deployment: use a stand-in frame
-        # so the recognition and motion pipeline can still run end to end.
+        # No hardware on a CI box or a fresh deployment: a stand-in frame lets
+        # the recognition and motion pipeline run end to end.
         from heacon.vision.synthetic import synthetic_frame
 
         frame = synthetic_frame()
@@ -279,6 +279,8 @@ def camera_bgr():
     note_frame_size(frame)
     return frame
 
+
+import heacon.config as config
 
 COLOR_LIVE = config.COLOR_LIVE
 DEPTH_LIVE = config.DEPTH_LIVE
@@ -324,8 +326,8 @@ def _preview_jpeg(plain=True):
     """Color frames from the USB RealSense preview, if that process is already open."""
     urls = []
     if plain:
-        urls.append("http://127.0.0.1:8771/raw.jpg")
-    urls.append("http://127.0.0.1:8771/frame.jpg")
+        urls.append("http://%s:%d/raw.jpg" % (config.CAMERA_SERVER_HOST, config.CAMERA_SERVER_PORT))
+    urls.append("http://%s:%d/frame.jpg" % (config.CAMERA_SERVER_HOST, config.CAMERA_SERVER_PORT))
     for url in urls:
         try:
             with urllib.request.urlopen(url, timeout=0.6) as resp:
@@ -445,9 +447,106 @@ def camera_view_jpeg():
 
 
 def ensure_camera():
-    """The colour stream comes from heacon.camera_daemon, never from this process.
-
-    Kept as a no-op so callers read the same on every platform: the daemon is
-    the single owner of the RealSense, exactly like on the Mac.
-    """
+    """Color frames come from the root RealSense process, not OpenCV."""
     return
+
+
+def _ensure_usb_preview():
+    """Infrared preview steals the RealSense from the color+depth process."""
+    return
+
+
+def _arm_camera_index():
+    """OpenCV sorts cameras by uniqueID, not by the order the system lists them.
+
+    Asking for the RealSense's place in that sorted list opens only that camera.
+    The phone and the laptop camera are never opened.
+    """
+    script = """import AVFoundation
+let video = AVCaptureDevice.devices(for: .video)
+let muxed = AVCaptureDevice.devices(for: .muxed)
+let devices = (video + muxed).sorted { $0.uniqueID.compare($1.uniqueID) == .orderedAscending }
+for (index, device) in devices.enumerated() {
+    let name = device.localizedName.lowercased()
+    if name.contains("iphone") || name.contains("ipad") { continue }
+    if name.contains("realsense") {
+        print(index)
+        exit(0)
+    }
+}
+exit(1)
+"""
+    try:
+        completed = subprocess.run(
+            ["swift", "-e", script],
+            capture_output=True,
+            text=True,
+            timeout=8,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if completed.returncode != 0:
+        return None
+    line = completed.stdout.strip().splitlines()
+    if not line:
+        return None
+    try:
+        return int(line[-1])
+    except ValueError:
+        return None
+
+
+def _capture_loop():
+    global _jpeg, _camera_error, _started
+    try:
+        _capture_forever()
+    finally:
+        with _lock:
+            _started = False
+            _jpeg = None
+            if not _camera_error:
+                _camera_error = "摄像头采图中断，正在重试"
+
+
+def _capture_forever():
+    global _jpeg, _camera_error
+    while True:
+        if _color_jpeg() is not None:
+            time.sleep(0.4)
+            continue
+        index = _arm_camera_index()
+        if index is None:
+            with _lock:
+                _jpeg = None
+                _camera_error = "机械臂摄像头没有接到这台电脑"
+            time.sleep(2)
+            continue
+        with _lock:
+            _camera_error = ""
+        capture = cv2.VideoCapture(index, cv2.CAP_V4L2)
+        capture.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+        capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        misses = 0
+        while misses < 20:
+            if _color_jpeg() is not None:
+                capture.release()
+                break
+            ok, frame = capture.read()
+            if not ok or frame is None:
+                misses += 1
+                time.sleep(0.2)
+                continue
+            misses = 0
+            ok, encoded = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+            if not ok:
+                continue
+            with _lock:
+                _jpeg = encoded.tobytes()
+                _camera_error = ""
+            time.sleep(0.05)
+        capture.release()
+        with _lock:
+            _jpeg = None
+            _camera_error = "没有读到机械臂摄像头"
+        time.sleep(1)

@@ -1,5 +1,5 @@
 [Unit]
-Description=HEACON 摄像头采集 (RealSense D435i)
+Description=HEACON 摄像头服务 (RealSense, 127.0.0.1:8771)
 Documentation=file:/opt/heacon/docs/部署.md
 After=network-online.target
 
@@ -7,8 +7,6 @@ After=network-online.target
 Type=simple
 User=heacon
 Group=heacon
-# The camera device appears after boot; the daemon waits for it on its own,
-# so no ordering dependency on the USB subsystem is needed.
 SupplementaryGroups=video
 WorkingDirectory=/opt/heacon
 EnvironmentFile=-/etc/heacon/heacon.env
@@ -19,13 +17,12 @@ ExecStart=/opt/heacon/.venv/bin/python /opt/heacon/main.py camera
 Restart=always
 RestartSec=5
 
-# A RealSense open can take several seconds on a cold boot; do not kill it.
+# A RealSense open takes several seconds on a cold boot; do not kill it early.
 TimeoutStopSec=15
 
 StandardOutput=append:/var/log/heacon/camera.log
 StandardError=append:/var/log/heacon/camera.log
 
-# Unlike the console, this one must reach /dev/bus/usb directly.
 NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict

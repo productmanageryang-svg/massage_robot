@@ -1,19 +1,24 @@
-# Runtime dependencies for the console, camera daemon and tablet door.
+# Runtime dependencies for the console, camera service and tablet door.
 #
-# Tested on Ubuntu 24.04 (Python 3.12) and macOS 26 (Python 3.9).
-# pyrealsense2 is NOT listed here: its wheel comes from Intel's index and its
-# Mac build has a different package name. See requirements-camera.txt.
+# Pinned to the versions that were verified on the NUC on 2026-11-04.
+# That machine ran Ubuntu 24.04 with Python 3.12.3.
+#
+# mediapipe drives the acupoint recognition in heacon/vision/hybrid_geom.py.
+# Without it recognition silently returns "no body" and no service can start.
 
-numpy>=1.24
-opencv-python-headless>=4.8
+numpy==1.26.4
+opencv-python-headless==4.11.0.86
+mediapipe==0.10.18
+protobuf==4.25.9
+scipy==1.16.3
 
-# Speech-to-text for tablet voice commands. Optional at runtime: if the model
-# or the package is missing, the console still serves and the voice button
-# reports that speech is unavailable.
-vosk>=0.3.44
+# Speech-to-text for tablet voice commands. Optional: without the model the
+# console still serves and the voice button reports that speech is unavailable.
+vosk==0.3.45
 
-# Optional: generates the mp3 clips for spoken prompts. Without it the page
-# falls back to the browser speech synthesiser.
-edge-tts>=6.1
+# Generates the mp3 clips for spoken prompts. Optional.
+edge-tts==7.3.1
 
-# Test and lint tools live in requirements-dev.txt.
+# RealSense D435i. On Linux the pip wheel works without a source build.
+# On macOS the package is named pyrealsense2-macosx; see requirements-camera.txt.
+pyrealsense2==2.59.1.11053

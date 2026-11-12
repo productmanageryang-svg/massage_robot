@@ -1,15 +1,17 @@
-# RealSense D435i libraries. Install after requirements.txt.
+# RealSense D435i libraries.
 #
-# Ubuntu 24.04 (deployment target)
-#   Intel publishes a pip wheel for x86_64 and aarch64:
-#       pip install pyrealsense2
-#   If that wheel is unavailable for your Python, build from source:
-#       https://github.com/IntelRealSense/librealsense/blob/master/doc/distribution_linux.md
+# Linux / Ubuntu 24.04 (the NUC deployment target)
+#   The pip wheel below is all that is needed; no source build, no Librealsense
+#   apt package. Verified on the NUC with Python 3.12.
+#       pip install -r requirements.txt      # includes pyrealsense2
+#   Then confirm the camera is visible to the service user:
+#       python -c "import pyrealsense2 as rs; print(len(list(rs.context().query_devices())))"
+#   A 0 here is a USB/permission problem, not a code problem. The udev rules in
+#   deploy/udev fix the permission half.
 #
-# macOS (the current field machine)
-#   The package name differs; it is the one already installed on site:
+# macOS (the older Mac field machine)
+#   Same package, different distribution name:
 #       pip install pyrealsense2-macosx
-#
-# Either way, the capture daemon is the only process that opens the camera.
-# On Linux it needs the udev rules in deploy/udev, then works as a normal user.
-# On macOS it must run as root; see deploy/launchd.
+#   The colour sensor is only reachable from a root process there, which is why
+#   deploy/launchd runs the capture daemon as root. On Linux none of that is
+#   needed, which is why the NUC build is simpler.
