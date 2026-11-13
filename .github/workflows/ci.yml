@@ -71,7 +71,9 @@ jobs:
         run: |
           python -c "import heacon.http.app; print('console imports without mediapipe')"
           python main.py --print-config
-          python -m pytest tests/ -q
+          # Only the tests that do not need recognition. tests/test_recognition_scale.py
+          # exercises hybrid_geom, which imports mediapipe on first use.
+          python -m pytest tests/test_config.py tests/test_plans.py -q
 
   lint:
     runs-on: ubuntu-24.04
