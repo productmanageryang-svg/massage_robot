@@ -175,7 +175,9 @@ def depth_blob(depth_mm, image_shape):
 
     z = depth_mm.astype(np.float32)
     valid = (z > 200) & (z < 1800)
-    if int(valid.sum()) < 8000:
+    # 8000 px on a 1280x720 frame; scales with area so a smaller frame is not
+    # rejected for having fewer pixels rather than less content.
+    if int(valid.sum()) < int(0.008681 * h * w):
         return None
 
     split = _table_body_split(z, valid)
@@ -188,8 +190,13 @@ def depth_blob(depth_mm, image_shape):
     # 桌面估高后连大片背景一起并进蒙版（实测蒙版能占到 53%），
     # 厚度随之虚胖到 594px（真值约 320），C7 与肩宽全部连带失真。
     mask = (valid & (z < thr_z)).astype(np.uint8) * 255
-    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((9, 9), np.uint8))
-    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((21, 21), np.uint8))
+    # Kernels in pixels; keep them proportional so a downscaled frame is not
+    # opened/closed away entirely.
+    k_scale = w / REF_WIDTH
+    k_open = max(3, int(round(9 * k_scale)) | 1)
+    k_close = max(3, int(round(21 * k_scale)) | 1)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((k_open, k_open), np.uint8))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((k_close, k_close), np.uint8))
 
     n, lab, st, _c = cv2.connectedComponentsWithStats(mask, 8)
     if n < 2:
@@ -214,7 +221,8 @@ def depth_blob(depth_mm, image_shape):
     lo, hi = np.percentile(along, 1.5), np.percentile(along, 98.5)
     length = float(hi - lo)
     thickness = float(np.percentile(across, 98.5) - np.percentile(across, 1.5))
-    if length < 100.0 or thickness < 60.0:
+    # 100 / 60 px on a 720-high frame.
+    if length < 0.13889 * h or thickness < 0.08333 * h:
         return None
 
     return {
@@ -231,16 +239,52 @@ def depth_blob(depth_mm, image_shape):
     }
 
 
-def _span_at(blob, centre_pos, half=320.0, step=2.0):
+# The recogniser was tuned on 1280x720 frames. Every distance below used to be
+# an absolute pixel count, which silently changed meaning on a smaller frame:
+# `half=320` is a quarter of a 1280-wide image but half of a 640-wide one, so
+# the width comparisons stopped discriminating and the head end could be
+# called backwards, turning the whole acupoint chart around.
+#
+# These keep the tuned behaviour at the reference size and scale with the
+# frame otherwise. Ratios are chosen so that at 1280x720 each one reproduces
+# the original constant exactly — see tests/test_recognition_scale.py, which
+# asserts the acupoints are identical at the reference size.
+REF_WIDTH = 1280.0
+REF_HEIGHT = 720.0
+REF_AREA = REF_WIDTH * REF_HEIGHT
+
+
+def _frame_size(blob):
+    """(width, height) of the frame this blob was built from."""
+    h, w = blob["mask"].shape[:2]
+    return float(w), float(h)
+
+
+def _scale(blob):
+    """How much bigger this frame is than the 1280x720 the tuning assumed."""
+    w, _h = _frame_size(blob)
+    return w / REF_WIDTH
+
+
+def _span_at(blob, centre_pos, half=None, step=None):
     """在轴上某位置取「包含脊柱轴的那一段」横向跨度。
 
     旧实现用 2%~98% 百分位，只要蒙版里混进一点背景噪声，
     跨度就会被拉大到接近扫描全宽（实测 594px，真值 320px）。
     改成沿 perp 逐步采样、取包含轴心的连续区间，天然排除断层噪声。
 
+    half / step 默认按画面宽度等比缩放：在 1280x720 上取 320 和 2，
+    与调参时完全一致；画面更小时自动收窄，避免扫过半个画面。
+
     返回 (width, offset_lo, offset_hi)；无有效段时返回 (0.0, 0.0, 0.0)。
     """
     import numpy as np
+
+    scale = _scale(blob)
+    if half is None:
+        half = 320.0 * scale
+    if step is None:
+        step = 2.0 * scale
 
     mask = blob["mask"]
     h, w = mask.shape[:2]
@@ -272,8 +316,13 @@ def _span_at(blob, centre_pos, half=320.0, step=2.0):
     return float(offs[b] - offs[a] + step), float(offs[a]), float(offs[b])
 
 
-def _width_at(blob, centre_pos, half_window=26.0):
-    """在轴上某位置取横截面厚度（左右边缘跨度）。"""
+def _width_at(blob, centre_pos, half_window=None):
+    """在轴上某位置取横截面厚度（左右边缘跨度）。
+
+    half_window 默认按画面宽度缩放：1280x720 上是 26，与调参一致。
+    """
+    if half_window is None:
+        half_window = 26.0 * _scale(blob)
     pts = blob["points"]
     axis = blob["axis"]
     perp = blob["perp"]
@@ -287,10 +336,16 @@ def _width_at(blob, centre_pos, half_window=26.0):
     return hi - lo, (lo + hi) / 2.0
 
 
-def _width_profile(blob, step=4.0):
-    """沿主轴从头到髋采样宽度，返回 (ts, widths)。"""
+def _width_profile(blob, step=None):
+    """沿主轴从头到髋采样宽度，返回 (ts, widths)。
+
+    step 默认按画面宽度缩放：1280x720 上是 4，与调参一致。
+    缩放后剖面点数基本不变，下游的 neck_i / peak_i 索引才落在同一位置。
+    """
     import numpy as np
 
+    if step is None:
+        step = 4.0 * _scale(blob)
     lo, hi = blob["along_range"]
     ts, ws = [], []
     t = lo
@@ -400,24 +455,31 @@ def _fit_midline(blob, anchor_pt, spine_hint, length, stations=15):
     axis = np.asarray(spine_hint, float)
     perp = np.array([-axis[1], axis[0]])
 
+    # Scan +-400 px and step 2 px at 1280 wide; scale both so the same part of
+    # the body is covered whatever the frame size.
+    k = w / REF_WIDTH
+    reach = 400.0 * k
+    step = 2.0 * k
+    min_width = 40.0 * k
+
     pts = []
     for i in range(stations):
         frac = -0.15 + (1.15 * i / max(stations - 1, 1))
         c = np.asarray(anchor_pt, float) + axis * (length * frac)
         lo = hi = None
-        t = -400.0
-        while t <= 400.0:
+        t = -reach
+        while t <= reach:
             p = c + perp * t
             xi, yi = int(round(p[0])), int(round(p[1]))
             if 0 <= xi < w and 0 <= yi < h and mask[yi, xi]:
                 if lo is None:
                     lo = t
                 hi = t
-            t += 2.0
+            t += step
         if lo is None or hi is None:
             continue
         width = hi - lo
-        if width < 40.0:
+        if width < min_width:
             continue
         pts.append((frac * length, (lo + hi) / 2.0))
 
@@ -465,7 +527,8 @@ def head_at_which_end(blob, image_bgr):
     """
     lo, hi = blob["along_range"]
     span = hi - lo
-    if span < 60:
+    # 60 px on a 720-high frame.
+    if span < 0.08333 * blob["mask"].shape[0]:
         return 1
 
     # --- 判据 1：头是「两端里更窄」的那一端 ---
